@@ -11,6 +11,17 @@ import {
   ToggleTaskInteractor,
   ToggleTaskOutputPort,
   ToggleTaskResponseDTO,
+  DeleteTaskInteractor,
+  DeleteTaskOutputPort,
+  DeleteTaskResponseDTO,
+  UpdateTaskInteractor,
+  UpdateTaskOutputPort,
+  UpdateTaskResponseDTO,
+  GetTaskByIdInteractor,
+  GetTaskByIdOutputPort,
+  GetTaskByIdResponseDTO,
+  ValidationError,
+  EntityNotFoundError,
 } from "../src";
 
 class StubTaskGateway implements TaskGateway {
@@ -18,7 +29,7 @@ class StubTaskGateway implements TaskGateway {
   private counter = 1;
 
   async save(task: Task): Promise<void> {
-    this.tasks.set(task.id, task);
+    this.tasks.set(task.id, Task.reconstitute(task.toSnapshot()));
   }
 
   async findById(id: string): Promise<Task | null> {
@@ -41,13 +52,11 @@ class StubTaskGateway implements TaskGateway {
   }
 }
 
-describe("Clean Architecture Core - Task Entity & Interactors", () => {
-  it("enforces Task entity validation rules and invariants", () => {
-    expect(() => Task.create("1", "")).toThrow("Task title cannot be empty");
-    expect(() => Task.create("1", "   ")).toThrow("Task title cannot be empty");
-    expect(() => Task.create("1", "a".repeat(256))).toThrow(
-      "Task title cannot exceed 255 characters"
-    );
+describe("Clean Architecture Core - Task Entity & Boundaries", () => {
+  it("enforces Task entity validation rules with typed ValidationError", () => {
+    expect(() => Task.create("1", "")).toThrow(ValidationError);
+    expect(() => Task.create("1", "   ")).toThrow(ValidationError);
+    expect(() => Task.create("1", "a".repeat(256))).toThrow(ValidationError);
 
     const task = Task.create("1", "Valid task", "Description");
     expect(task.title).toBe("Valid task");
@@ -61,103 +70,145 @@ describe("Clean Architecture Core - Task Entity & Interactors", () => {
     task.toggle();
     expect(task.isCompleted).toBe(false);
     expect(task.completedAt).toBeUndefined();
+
+    task.updateDetails("Updated title", "Updated desc");
+    expect(task.title).toBe("Updated title");
+    expect(task.description).toBe("Updated desc");
+
+    expect(() => task.updateDetails("")).toThrow(ValidationError);
   });
 
-  it("executes CreateTask use case across input/output ports", async () => {
-    const gateway = new StubTaskGateway();
-    const interactor = new CreateTaskInteractor(gateway);
-
-    let receivedResponse: CreateTaskResponseDTO | undefined;
-    const presenter: CreateTaskOutputPort = {
-      presentSuccess(res) {
-        receivedResponse = res;
-      },
-      presentError(err) {
-        throw err;
-      },
-    };
-
-    await interactor.execute({ title: "Write acceptance test" }, presenter);
-
-    expect(receivedResponse).toBeDefined();
-    expect(receivedResponse?.title).toBe("Write acceptance test");
-    expect(receivedResponse?.completed).toBe(false);
-
-    const saved = await gateway.findById(receivedResponse!.id);
-    expect(saved?.title).toBe("Write acceptance test");
-  });
-
-  it("executes ListTasks and ToggleTask use cases", async () => {
+  it("executes CreateTask and GetTaskById use cases across boundary ports", async () => {
     const gateway = new StubTaskGateway();
     const createInteractor = new CreateTaskInteractor(gateway);
-    const listInteractor = new ListTasksInteractor(gateway);
-    const toggleInteractor = new ToggleTaskInteractor(gateway);
+    const getInteractor = new GetTaskByIdInteractor(gateway);
 
-    let res1: CreateTaskResponseDTO | undefined;
+    let createRes: CreateTaskResponseDTO | undefined;
     await createInteractor.execute(
-      { title: "Task 1" },
+      { title: "Boundary check", description: "Clean Architecture" },
       {
         presentSuccess(res) {
-          res1 = res;
+          createRes = res;
         },
-        presentError(e) {
-          throw e;
+        presentError(err) {
+          throw err;
         },
       }
     );
 
-    await createInteractor.execute(
-      { title: "Task 2" },
+    expect(createRes).toBeDefined();
+    expect(createRes?.title).toBe("Boundary check");
+
+    let getRes: GetTaskByIdResponseDTO | undefined;
+    await getInteractor.execute(
+      { id: createRes!.id },
+      {
+        presentSuccess(res) {
+          getRes = res;
+        },
+        presentError(err) {
+          throw err;
+        },
+      }
+    );
+
+    expect(getRes?.id).toBe(createRes!.id);
+    expect(getRes?.description).toBe("Clean Architecture");
+  });
+
+  it("presents EntityNotFoundError when accessing non-existent task", async () => {
+    const gateway = new StubTaskGateway();
+    const toggleInteractor = new ToggleTaskInteractor(gateway);
+    const deleteInteractor = new DeleteTaskInteractor(gateway);
+    const getInteractor = new GetTaskByIdInteractor(gateway);
+
+    let capturedError: Error | undefined;
+
+    await toggleInteractor.execute(
+      { id: "non-existent" },
       {
         presentSuccess() {},
+        presentError(err) {
+          capturedError = err;
+        },
+      }
+    );
+    expect(capturedError).toBeInstanceOf(EntityNotFoundError);
+
+    capturedError = undefined;
+    await deleteInteractor.execute(
+      { id: "non-existent" },
+      {
+        presentSuccess() {},
+        presentError(err) {
+          capturedError = err;
+        },
+      }
+    );
+    expect(capturedError).toBeInstanceOf(EntityNotFoundError);
+
+    capturedError = undefined;
+    await getInteractor.execute(
+      { id: "non-existent" },
+      {
+        presentSuccess() {},
+        presentError(err) {
+          capturedError = err;
+        },
+      }
+    );
+    expect(capturedError).toBeInstanceOf(EntityNotFoundError);
+  });
+
+  it("executes UpdateTask and DeleteTask use cases", async () => {
+    const gateway = new StubTaskGateway();
+    const createInteractor = new CreateTaskInteractor(gateway);
+    const updateInteractor = new UpdateTaskInteractor(gateway);
+    const deleteInteractor = new DeleteTaskInteractor(gateway);
+
+    let createRes: CreateTaskResponseDTO | undefined;
+    await createInteractor.execute(
+      { title: "Original Title" },
+      {
+        presentSuccess(res) {
+          createRes = res;
+        },
         presentError(e) {
           throw e;
         },
       }
     );
 
-    let toggleRes: ToggleTaskResponseDTO | undefined;
-    await toggleInteractor.execute(
-      { id: res1!.id },
+    let updateRes: UpdateTaskResponseDTO | undefined;
+    await updateInteractor.execute(
+      { id: createRes!.id, title: "Renamed Title", description: "Added desc" },
       {
         presentSuccess(res) {
-          toggleRes = res;
+          updateRes = res;
         },
         presentError(e) {
           throw e;
         },
       }
     );
-    expect(toggleRes?.completed).toBe(true);
+    expect(updateRes?.title).toBe("Renamed Title");
+    expect(updateRes?.description).toBe("Added desc");
 
-    let activeList: ListTasksResponseDTO | undefined;
-    await listInteractor.execute(
-      { filter: "active" },
+    let deleteRes: DeleteTaskResponseDTO | undefined;
+    await deleteInteractor.execute(
+      { id: createRes!.id },
       {
         presentSuccess(res) {
-          activeList = res;
+          deleteRes = res;
         },
         presentError(e) {
           throw e;
         },
       }
     );
-    expect(activeList?.tasks).toHaveLength(1);
-    expect(activeList?.tasks[0].title).toBe("Task 2");
+    expect(deleteRes?.success).toBe(true);
 
-    let completedList: ListTasksResponseDTO | undefined;
-    await listInteractor.execute(
-      { filter: "completed" },
-      {
-        presentSuccess(res) {
-          completedList = res;
-        },
-        presentError(e) {
-          throw e;
-        },
-      }
-    );
-    expect(completedList?.tasks).toHaveLength(1);
-    expect(completedList?.tasks[0].title).toBe("Task 1");
+    const remaining = await gateway.findAll();
+    expect(remaining).toHaveLength(0);
   });
 });

@@ -1,3 +1,5 @@
+import { ValidationError } from "../errors/domain-error";
+
 export interface TaskProps {
   readonly id: string;
   readonly title: string;
@@ -11,12 +13,12 @@ export class Task {
   private constructor(private props: TaskProps) {}
 
   public static create(id: string, title: string, description?: string): Task {
-    const trimmedTitle = title.trim();
+    const trimmedTitle = title ? title.trim() : "";
     if (!trimmedTitle) {
-      throw new Error("Task title cannot be empty");
+      throw new ValidationError("Task title cannot be empty", "title");
     }
     if (trimmedTitle.length > 255) {
-      throw new Error("Task title cannot exceed 255 characters");
+      throw new ValidationError("Task title cannot exceed 255 characters", "title");
     }
 
     return new Task({
@@ -30,6 +32,22 @@ export class Task {
 
   public static reconstitute(props: TaskProps): Task {
     return new Task({ ...props });
+  }
+
+  public updateDetails(title: string, description?: string): void {
+    const trimmedTitle = title ? title.trim() : "";
+    if (!trimmedTitle) {
+      throw new ValidationError("Task title cannot be empty", "title");
+    }
+    if (trimmedTitle.length > 255) {
+      throw new ValidationError("Task title cannot exceed 255 characters", "title");
+    }
+
+    this.props = {
+      ...this.props,
+      title: trimmedTitle,
+      description: description?.trim() || undefined,
+    };
   }
 
   public complete(): void {
