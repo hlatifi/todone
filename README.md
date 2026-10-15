@@ -6,7 +6,7 @@ A cross-platform, offline-first Todo application built with Uncle Bob's Clean Ar
 
 - **Clean Architecture Monorepo**: Pure TypeScript domain entities and use cases decoupled from frameworks and storage.
 - **Agent Coordination**: Uncle Bob's SwarmForge (`swarm-forge`) squad topology.
-- **Acceptance Testing**: Acceptance Pipeline Specification (APS) / FitNesse Slim patterns.
+- **Acceptance Testing**: Portable Acceptance Pipeline Specification (APS) & FitNesse Slim harness executing against pure Clean Architecture use cases.
 - **Client**: Expo Router (React Native & Expo Web PWA).
 
 ```
@@ -17,9 +17,15 @@ todone/
 │   │   ├── src/gateways/      # TaskGateway boundary interface
 │   │   └── src/use-cases/     # Interactors, Input/Output Ports, DTOs
 │   │
-│   └── adapters/              # Interface Adapters
-│       ├── src/repositories/  # InMemoryTaskGateway (for test & local execution)
-│       └── src/presenters/    # Presenter output port implementations
+│   ├── adapters/              # Interface Adapters
+│   │   ├── src/repositories/  # InMemoryTaskGateway (for test & local execution)
+│   │   └── src/presenters/    # Presenter output port implementations
+│   │
+│   └── acceptance/            # Acceptance Pipeline Specification (APS) Harness
+│       ├── features/          # Gherkin feature files (.feature)
+│       ├── src/parser/        # Gherkin to JSON IR parser (parser-spec.md)
+│       ├── src/runtime/       # Acceptance runner & StepRegistry
+│       └── src/fixtures/      # TaskFixture driving Clean Architecture use cases
 │
 └── apps/
     └── todone/                # Expo Router App (iOS, Android, Web PWA)
@@ -54,17 +60,17 @@ pnpm android
 pnpm ios
 ```
 
-### Typecheck & Testing
+### Typecheck & Acceptance Testing
 ```bash
 # Typecheck across all packages and apps
 pnpm typecheck
 
-# Run unit tests
+# Run all unit and Gherkin acceptance test suites
 pnpm test
 ```
 
 ### Production Build & PWA Export
 ```bash
-# Compile packages/core & packages/adapters and export static Web PWA
+# Compile packages and export static Web PWA
 pnpm build
 ```
