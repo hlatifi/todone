@@ -1,4 +1,5 @@
 import { TaskGateway } from "../../gateways/task-gateway";
+import { EntityNotFoundError } from "../../errors/domain-error";
 import { ToggleTaskRequestDTO } from "./toggle-task-dto";
 import { ToggleTaskInputPort, ToggleTaskOutputPort } from "./toggle-task-ports";
 
@@ -12,7 +13,7 @@ export class ToggleTaskInteractor implements ToggleTaskInputPort {
     try {
       const task = await this.taskGateway.findById(request.id);
       if (!task) {
-        throw new Error(`Task with id ${request.id} not found`);
+        throw new EntityNotFoundError("Task", request.id);
       }
 
       task.toggle();
