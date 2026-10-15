@@ -1,0 +1,14 @@
+{
+  "name": "@todone/core",
+  "version": "0.1.0",
+  "description": "Pure Clean Architecture enterprise domain entities and use cases (framework & storage agnostic)",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "scripts": {
+    "build": "tsc",
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "typescript": "~5.8.2"
+  }
+}

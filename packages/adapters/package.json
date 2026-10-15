@@ -1,0 +1,17 @@
+{
+  "name": "@todone/adapters",
+  "version": "0.1.0",
+  "description": "Interface adapters, in-memory repository implementations, and presenters",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "scripts": {
+    "build": "tsc",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@todone/core": "workspace:*"
+  },
+  "devDependencies": {
+    "typescript": "~5.8.2"
+  }
+}
