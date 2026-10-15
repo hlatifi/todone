@@ -1,0 +1,23 @@
+# Workflow Rules
+
+## Worktree Discipline
+- At startup, discover and work strictly within the branch and worktree assigned to your role:
+  - **Specifier**: Primary repository root on branch `main` (or `master`).
+  - **Coder**: Isolated worktree `.worktrees/coder` on branch `squad/coder`.
+  - **Refactorer**: Isolated worktree `.worktrees/refactorer` on branch `squad/refactorer`.
+  - **Architect**: Isolated worktree `.worktrees/architect` on branch `squad/architect`.
+- Work only in your assigned worktree and branch.
+- Do not inspect, diff, merge, or base work on another branch unless that branch is explicitly named in a handoff.
+
+## Commit Messages
+- Include your role byline in every git commit message in this exact format: `By <role>.`
+- Example:
+  ```text
+  Implement subtask cascading completion
+
+  By coder.
+  ```
+
+## Temporary Files
+- Use `./tmp/` in your assigned worktree for temporary files, handoff drafts, and intermediate artifacts; never write scratch files to `/tmp` or repo roots.
+- All temporary `./tmp/` files are git-ignored.

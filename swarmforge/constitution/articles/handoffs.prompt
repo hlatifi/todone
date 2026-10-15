@@ -1,0 +1,33 @@
+# Handoff Rules
+
+## Sending Handoffs
+- Write a draft handoff file containing structured headers in `./tmp/` in your assigned worktree, then execute `swarm_handoff.sh <draft-file>`.
+- The helper automatically injects `commit` SHA and `artifacts` from the sender's worktree HEAD.
+- Handoff routing follows the 4-role squad chain:
+  `specifier` ➔ `coder` ➔ `refactorer` ➔ `architect` ➔ `master` (back-all)
+
+## Handoff Message Formats
+
+### For `git_handoff`:
+```text
+type: git_handoff
+to: <role>
+priority: 10
+task: <task-name>
+```
+
+### For `note`:
+```text
+type: note
+to: <role>
+priority: 10
+message: <one line, max 80 chars>
+```
+
+## Inbound Handoff Lifecycle
+1. On notification or new work arrival, run `ready_for_next.sh` (merges inbound `git_handoff` into your worktree).
+2. Execute the role's assigned responsibilities.
+3. Verify changes with unit and acceptance test suites (`pnpm test`).
+4. Commit changes with `By <role>.` byline.
+5. Send forward `git_handoff` to the next role via `swarm_handoff.sh ./tmp/handoff.txt`.
+6. Run `done_with_current.sh` to acknowledge completion.

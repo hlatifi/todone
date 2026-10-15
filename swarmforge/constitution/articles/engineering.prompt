@@ -1,0 +1,27 @@
+# Engineering Rules for ToDone
+
+## Language & Monorepo Environment
+- **Platform**: TypeScript (strict mode), Node.js (>= 22), pnpm workspaces (`packages/core`, `packages/adapters`, `packages/acceptance`, `apps/todone`).
+- **Dependency Rule**: Source code dependencies must point only inward toward pure business logic.
+- `packages/core` must have ZERO external dependencies on frameworks (React, Expo), databases (SQLite, IndexedDB), or network libraries.
+- All external dependencies and storage implementations live in `packages/adapters` or `apps/todone`.
+- Verify workspace integrity with `pnpm -r typecheck` and `pnpm test`.
+
+## Acceptance Pipeline Specification (APS)
+- Acceptance criteria must be authored in declarative Gherkin `.feature` files located in `packages/acceptance/features/`.
+- Conforms to Uncle Bob's `parser-spec.md` in `unclebob/Acceptance-Pipeline-Specification`.
+- Acceptance tests must execute against **Use Case Interactor boundaries** via interface adapter fixtures (`TaskFixture`), completely decoupled from the UI and live database.
+- Acceptance tests must run in sub-second time with zero flakiness.
+- Scenarios must use parameter placeholders (`<param>`) and `Examples:` tables for data variations.
+
+## Test-Driven Development (TDD)
+- Coder must work test-first: write a failing unit or acceptance test expressing the desired behavior before writing production code.
+- Write only enough production code to pass the tests.
+- Refactor continuously while maintaining all tests passing.
+- Do not bypass type checks (`@ts-ignore` is prohibited).
+
+## Design & Testability
+- Work in small, reviewable increments.
+- Prefer deep modules with simple, expressive interfaces.
+- Separate testable core domain logic from environmentally unsuitable modules (native mobile APIs, file system, UI animations).
+- IO-near modules must not reimplement domain rules. When UI or adapters need an answer, call the core use case interactor.

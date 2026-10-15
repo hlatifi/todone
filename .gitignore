@@ -30,3 +30,8 @@ npm-debug.*
 yarn-debug.*
 yarn-error.*
 .env*.local
+
+# SwarmForge worktrees & temporary files
+.worktrees/
+.swarmforge/
+tmp/
