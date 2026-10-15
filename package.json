@@ -1,0 +1,20 @@
+{
+  "name": "todone-monorepo",
+  "version": "0.1.0",
+  "private": true,
+  "packageManager": "pnpm@11.5.3",
+  "scripts": {
+    "start": "pnpm --filter @todone/app start",
+    "web": "pnpm --filter @todone/app web",
+    "android": "pnpm --filter @todone/app android",
+    "ios": "pnpm --filter @todone/app ios",
+    "build": "pnpm -r --filter=!@todone/app build && pnpm --filter @todone/app export:web",
+    "typecheck": "pnpm -r typecheck",
+    "test": "vitest run",
+    "lint": "pnpm -r lint"
+  },
+  "devDependencies": {
+    "typescript": "~5.8.2",
+    "vitest": "^5.0.4"
+  }
+}
