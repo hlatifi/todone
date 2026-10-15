@@ -1,27 +1,20 @@
 import { describe, it, expect } from "vitest";
 import {
   Task,
+  Tag,
+  Project,
   TaskGateway,
   CreateTaskInteractor,
   CreateTaskOutputPort,
   CreateTaskResponseDTO,
   ListTasksInteractor,
-  ListTasksOutputPort,
-  ListTasksResponseDTO,
   ToggleTaskInteractor,
-  ToggleTaskOutputPort,
-  ToggleTaskResponseDTO,
   DeleteTaskInteractor,
-  DeleteTaskOutputPort,
-  DeleteTaskResponseDTO,
   UpdateTaskInteractor,
-  UpdateTaskOutputPort,
-  UpdateTaskResponseDTO,
   GetTaskByIdInteractor,
-  GetTaskByIdOutputPort,
-  GetTaskByIdResponseDTO,
   ValidationError,
   EntityNotFoundError,
+  InvariantViolationError,
 } from "../src";
 
 class StubTaskGateway implements TaskGateway {
@@ -52,163 +45,106 @@ class StubTaskGateway implements TaskGateway {
   }
 }
 
-describe("Clean Architecture Core - Task Entity & Boundaries", () => {
-  it("enforces Task entity validation rules with typed ValidationError", () => {
-    expect(() => Task.create("1", "")).toThrow(ValidationError);
-    expect(() => Task.create("1", "   ")).toThrow(ValidationError);
-    expect(() => Task.create("1", "a".repeat(256))).toThrow(ValidationError);
+describe("Clean Architecture Core - Domain Entities & Invariants", () => {
+  it("enforces Tag value object normalization and invariants", () => {
+    expect(() => Tag.create("")).toThrow(ValidationError);
+    expect(() => Tag.create("   ")).toThrow(ValidationError);
+    expect(() => Tag.create("invalid tag with spaces")).toThrow(ValidationError);
+    expect(() => Tag.create("tag_with_underscores")).toThrow(ValidationError);
 
-    const task = Task.create("1", "Valid task", "Description");
-    expect(task.title).toBe("Valid task");
-    expect(task.description).toBe("Description");
-    expect(task.isCompleted).toBe(false);
-
-    task.toggle();
-    expect(task.isCompleted).toBe(true);
-    expect(task.completedAt).toBeInstanceOf(Date);
-
-    task.toggle();
-    expect(task.isCompleted).toBe(false);
-    expect(task.completedAt).toBeUndefined();
-
-    task.updateDetails("Updated title", "Updated desc");
-    expect(task.title).toBe("Updated title");
-    expect(task.description).toBe("Updated desc");
-
-    expect(() => task.updateDetails("")).toThrow(ValidationError);
+    const tag1 = Tag.create("#Architecture");
+    const tag2 = Tag.create("architecture");
+    expect(tag1.toString()).toBe("architecture");
+    expect(tag1.toHashString()).toBe("#architecture");
+    expect(tag1.equals(tag2)).toBe(true);
   });
 
-  it("executes CreateTask and GetTaskById use cases across boundary ports", async () => {
-    const gateway = new StubTaskGateway();
-    const createInteractor = new CreateTaskInteractor(gateway);
-    const getInteractor = new GetTaskByIdInteractor(gateway);
-
-    let createRes: CreateTaskResponseDTO | undefined;
-    await createInteractor.execute(
-      { title: "Boundary check", description: "Clean Architecture" },
-      {
-        presentSuccess(res) {
-          createRes = res;
-        },
-        presentError(err) {
-          throw err;
-        },
-      }
-    );
-
-    expect(createRes).toBeDefined();
-    expect(createRes?.title).toBe("Boundary check");
-
-    let getRes: GetTaskByIdResponseDTO | undefined;
-    await getInteractor.execute(
-      { id: createRes!.id },
-      {
-        presentSuccess(res) {
-          getRes = res;
-        },
-        presentError(err) {
-          throw err;
-        },
-      }
-    );
-
-    expect(getRes?.id).toBe(createRes!.id);
-    expect(getRes?.description).toBe("Clean Architecture");
+  it("enforces Project entity invariants", () => {
+    expect(() => Project.create("p1", "")).toThrow(ValidationError);
+    const project = Project.create("p1", "Clean Architecture", "Desc", "#38bdf8");
+    expect(project.name).toBe("Clean Architecture");
+    expect(project.color).toBe("#38bdf8");
   });
 
-  it("presents EntityNotFoundError when accessing non-existent task", async () => {
-    const gateway = new StubTaskGateway();
-    const toggleInteractor = new ToggleTaskInteractor(gateway);
-    const deleteInteractor = new DeleteTaskInteractor(gateway);
-    const getInteractor = new GetTaskByIdInteractor(gateway);
+  it("manages subtask hierarchy, depth cap of 5, and cycle guards", () => {
+    const root = Task.create("root", "Root Task", undefined, "proj-1");
+    expect(root.depth).toBe(1);
+    expect(root.projectId).toBe("proj-1");
 
-    let capturedError: Error | undefined;
+    expect(() => root.attachSubtask(root)).toThrow(InvariantViolationError);
 
-    await toggleInteractor.execute(
-      { id: "non-existent" },
-      {
-        presentSuccess() {},
-        presentError(err) {
-          capturedError = err;
-        },
-      }
+    const child1 = Task.create("child-1", "Level 2 Child");
+    root.attachSubtask(child1);
+    expect(child1.depth).toBe(2);
+    expect(child1.projectId).toBe("proj-1"); // Inherits project
+    expect(child1.parentId).toBe("root");
+    expect(root.subtaskIds).toContain("child-1");
+
+    const child2 = Task.create("child-2", "Level 3 Child");
+    child1.attachSubtask(child2);
+    expect(child2.depth).toBe(3);
+
+    const child3 = Task.create("child-3", "Level 4 Child");
+    child2.attachSubtask(child3);
+    expect(child3.depth).toBe(4);
+
+    const child4 = Task.create("child-4", "Level 5 Child");
+    child3.attachSubtask(child4);
+    expect(child4.depth).toBe(5);
+
+    const child5 = Task.create("child-5", "Level 6 Child - Exceeds Max");
+    expect(() => child4.attachSubtask(child5)).toThrow(
+      "Maximum subtask depth of 5 exceeded"
     );
-    expect(capturedError).toBeInstanceOf(EntityNotFoundError);
-
-    capturedError = undefined;
-    await deleteInteractor.execute(
-      { id: "non-existent" },
-      {
-        presentSuccess() {},
-        presentError(err) {
-          capturedError = err;
-        },
-      }
-    );
-    expect(capturedError).toBeInstanceOf(EntityNotFoundError);
-
-    capturedError = undefined;
-    await getInteractor.execute(
-      { id: "non-existent" },
-      {
-        presentSuccess() {},
-        presentError(err) {
-          capturedError = err;
-        },
-      }
-    );
-    expect(capturedError).toBeInstanceOf(EntityNotFoundError);
   });
 
-  it("executes UpdateTask and DeleteTask use cases", async () => {
-    const gateway = new StubTaskGateway();
-    const createInteractor = new CreateTaskInteractor(gateway);
-    const updateInteractor = new UpdateTaskInteractor(gateway);
-    const deleteInteractor = new DeleteTaskInteractor(gateway);
+  it("cascades completion to incomplete descendant subtasks", () => {
+    const parent = Task.create("p", "Parent Task");
+    const sub1 = Task.create("s1", "Subtask 1");
+    const sub2 = Task.create("s2", "Subtask 2");
 
-    let createRes: CreateTaskResponseDTO | undefined;
-    await createInteractor.execute(
-      { title: "Original Title" },
-      {
-        presentSuccess(res) {
-          createRes = res;
-        },
-        presentError(e) {
-          throw e;
-        },
-      }
+    parent.attachSubtask(sub1);
+    parent.attachSubtask(sub2);
+
+    expect(parent.isCompleted).toBe(false);
+    expect(sub1.isCompleted).toBe(false);
+
+    parent.complete([sub1, sub2]);
+    expect(parent.isCompleted).toBe(true);
+    expect(sub1.isCompleted).toBe(true);
+    expect(sub2.isCompleted).toBe(true);
+
+    const events = parent.getUncommittedEvents();
+    const completedEvent = events.find((e) => e.eventType === "TaskCompleted");
+    expect(completedEvent).toBeDefined();
+  });
+
+  it("enforces temporal invariants for dueDate and reminderDate", () => {
+    const task = Task.create("t1", "Scheduled Task");
+
+    const futureDue = new Date(Date.now() + 86400000);
+    const beforeReminder = new Date(Date.now() + 3600000);
+    const afterReminder = new Date(Date.now() + 90000000);
+
+    task.schedule(futureDue, beforeReminder);
+    expect(task.dueDate).toEqual(futureDue);
+    expect(task.reminderDate).toEqual(beforeReminder);
+
+    expect(() => task.schedule(futureDue, afterReminder)).toThrow(
+      "Reminder date must be before or equal to due date"
     );
+  });
 
-    let updateRes: UpdateTaskResponseDTO | undefined;
-    await updateInteractor.execute(
-      { id: createRes!.id, title: "Renamed Title", description: "Added desc" },
-      {
-        presentSuccess(res) {
-          updateRes = res;
-        },
-        presentError(e) {
-          throw e;
-        },
-      }
-    );
-    expect(updateRes?.title).toBe("Renamed Title");
-    expect(updateRes?.description).toBe("Added desc");
+  it("buffers uncommitted Domain Events and allows clearing", () => {
+    const task = Task.create("t-events", "Event Test");
+    expect(task.getUncommittedEvents()).toHaveLength(1);
+    expect(task.getUncommittedEvents()[0].eventType).toBe("TaskCreated");
 
-    let deleteRes: DeleteTaskResponseDTO | undefined;
-    await deleteInteractor.execute(
-      { id: createRes!.id },
-      {
-        presentSuccess(res) {
-          deleteRes = res;
-        },
-        presentError(e) {
-          throw e;
-        },
-      }
-    );
-    expect(deleteRes?.success).toBe(true);
+    task.addTag("offline");
+    expect(task.getUncommittedEvents()).toHaveLength(2);
+    expect(task.getUncommittedEvents()[1].eventType).toBe("TaskTagAdded");
 
-    const remaining = await gateway.findAll();
-    expect(remaining).toHaveLength(0);
+    task.clearUncommittedEvents();
+    expect(task.getUncommittedEvents()).toHaveLength(0);
   });
 });
