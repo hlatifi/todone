@@ -1,8 +1,16 @@
 // Errors
 export * from "./errors/domain-error";
 
+// Value Objects
+export * from "./value-objects/tag";
+
+// Domain Events
+export * from "./events/domain-event";
+export * from "./events/task-events";
+
 // Entities
 export * from "./entities/task";
+export * from "./entities/project";
 
 // Gateways
 export * from "./gateways/task-gateway";
